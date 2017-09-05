@@ -48,20 +48,22 @@ bool promptContinue()
 	char c;
 	cin.get(c);
 	cin.ignore();
-	if (c == 'y') { return true; }
+	if (c == 'y' || c == 'Y') { return true; }
 	return false;
 }
 
 int main(int argc, char* argv[]) {
 	
 	//Variable Declaration
-	stack<int> myStack;
-	map<string, int> myMap;
-	int value, tempValueOne, tempValueTwo;
+	stack<double> myStack;
+	map<string, double> myMap;
+	double value, tempOne, tempTwo;
 	string postfix;
 	string::iterator myStringIt;
-	regex operExpr("[+-/*$]");
-	regex wordExpr("([a-zA-Z0-9]+)");
+	regex operExpr("([+-/*])");
+	regex wordExpr("([a-zA-Z0-9.]+)");
+	smatch match;
+	bool noErrors = true;
 
 	while (1) {
 		//Ask for initial user input of postfix statment
@@ -78,26 +80,71 @@ int main(int argc, char* argv[]) {
 			if (promptContinue()) { continue; }
 			return 0;
 		}
-		sregex_iterator myRegIt(postfix.begin(), postfix.end(), 
-		for(auto myRegIt=sregex_iterator(postfix.begin(), postfix.end(), expr); myRegIt!=sregex_iterator(); ++myRegIt) {
-			smatch result = *myRegIt;
-			if(myMap.find(result.str()) == myMap.end()) {
+		//Find operators (+, -, /, *) with regex search
+		while(regex_search(postfix, match, operExpr)) {
+			//With each operator found, the prefix of the
+			//regex match should contain the operands -
+			//find them with an iterative regex search
+			string operands = match.prefix().str();
+			for(auto myRegIt=sregex_iterator(operands.begin(), operands.end(), wordExpr); myRegIt!=sregex_iterator(); ++myRegIt) {
+				smatch result = *myRegIt;
+				//We want to push the value of this operand onto
+				//the stack, but it might be a variable
 				try {
-					value = stoi(result.str());
+					value = stod(result.str());
+					myStack.push(value);
 				}
-				catch(invalid_argument&) { 
-					cout << "Enter the value of " << result.str() << ":";
-					cin >> value;
-					cin.ignore();
-					myMap.emplace(result.str(), value);
+				catch(invalid_argument&) {
+					//If this is a variable and we don't already
+					//know its value, prompt the user for the value
+					auto tempIt = myMap.find(result.str());
+					if(tempIt == myMap.end()) {
+						cout << "\tEnter the value of " << result.str() << ":";
+						cin >> value;
+						cin.ignore();
+						myMap.emplace(result.str(), value);
+						myStack.push(value);
+					}
+					//Otherwise we already know the value
+					//And can immediately put it on the stack
+					else { myStack.push(tempIt->second); }
 				}
 			}
+			//Pop two values from the stack and perform
+			//this operator match on them. Fails if there
+			//are not two values on the stack.
+			if(myStack.size() < 2) {
+				cout << "\tFailed to perform '" << match.str() << "' because two values were not on the stack. The postfix expression may be invalid." << endl;
+				noErrors = false;
+				break;
+			}
+			tempTwo = myStack.top(); myStack.pop();
+			tempOne = myStack.top(); myStack.pop();
+			switch(match.str()[0]) {
+				case '+': myStack.push(tempOne+tempTwo); break;
+				case '-': myStack.push(tempOne-tempTwo); break;
+				case '/': myStack.push(tempOne/tempTwo); break;
+				case '*': myStack.push(tempOne*tempTwo); break;
+			}
+			//Continue with the outside loop (finding operators)
+			//on the remainder of the postfix
+			postfix = match.suffix().str();
 		}
-		if (promptContinue()) { 
-			myMap.clear();
-			continue; 
+		if(noErrors) {
+			if(myStack.size() == 1) {
+				cout << "\tFinal Value=" << myStack.top() << endl;
+			}
+			else if(myStack.size() > 1) {
+				cout << "\tError: more than one value exists on the stack at the end of evaluating the postfix expression, therefore it may be invalid." << endl;
+			}
+			else if(myStack.size() == 0) {
+				cout << "\tError: nothing remained on the stack at the end of evaluating the postfix expression, therefore it may be invalid." << endl;
+			}
 		}
-		return 0;
+		myMap.clear();
+		while(!myStack.empty()) { myStack.pop(); }
+		noErrors = true;
+		if(!promptContinue()) { break; }
 	}
 	return 0;
 }
