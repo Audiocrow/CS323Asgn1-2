@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <map>
+#include <regex>
 #include <stack>
 #include <string>
 
@@ -57,116 +58,41 @@ int main(int argc, char* argv[]) {
 	stack<int> myStack;
 	map<string, int> myMap;
 	int value, tempValueOne, tempValueTwo;
-	string expr;
+	string postfix;
 	string::iterator myStringIt;
-	bool noErrors = true;
+	regex operExpr("[+-/*$]");
+	regex wordExpr("([a-zA-Z0-9]+)");
 
 	while (1) {
 		//Ask for initial user input of postfix statment
 		cout << "Enter a postfix expression with a $ at the end:";
 		
 		//Store postfix statment
-		cin >> expr;
-		cin.ignore();
+		getline(cin, postfix);
 
 		//Ensure postfix statment ends with '$'
-		if (expr.back() != '$') {
+		if (postfix.back() != '$') {
 			cout << "\tInvalid expression: does not end with $" << endl;
 			//In the event that the statmenet does not end with a '$' the user is asked
 			//if they would like to continue or to terminate the program
 			if (promptContinue()) { continue; }
 			return 0;
 		}
-
-		//Use string iterator to parse through the postfix statment
-		//To find variable names
-		string nextString;
-		for (myStringIt = expr.begin(); myStringIt != expr.end(); ++myStringIt) {
-			//If a space, an operator, or $ is found prompt the user for the value
-			//Of the string that's been concatenating so far
-			if(isOperator(*myStringIt) || *myStringIt == ' ' || *myStringIt == '$') {
-				if(nextString.length() > 0) {
-					cout << "Enter the value of " << nextString << ":";
-					int value;
+		sregex_iterator myRegIt(postfix.begin(), postfix.end(), 
+		for(auto myRegIt=sregex_iterator(postfix.begin(), postfix.end(), expr); myRegIt!=sregex_iterator(); ++myRegIt) {
+			smatch result = *myRegIt;
+			if(myMap.find(result.str()) == myMap.end()) {
+				try {
+					value = stoi(result.str());
+				}
+				catch(invalid_argument&) { 
+					cout << "Enter the value of " << result.str() << ":";
 					cin >> value;
 					cin.ignore();
-					myMap.emplace(nextString, value);
-					nextString.clear();
-				}
-				//If $ was found, stop looking
-				if(*myStringIt == '$") { break; }
-			}
-			//Otherwise, add this character to nextString
-			else { nextString += *myStringIt; }
-		}
-		
-		//Use string iterator to parse through postfix statment
-		//if the character is a non-operator it's value is pushed onto 
-		//the stack if the character is an operator the operation is 
-		//done on the top two values on the stack, the result is pushed 
-		//back onto the stack
-		nextString.clear();
-		//TODO: change this section to assignment 2 version
-		for (myStringIt = expr.begin(); myStringIt != expr.end(); ++myStringIt) {
-			
-			//Leaves for loop upon reaching '$', even if nextString isn't empty
-			//(because $ isn't an operator, so there would be nothing to do anyway)
-			if (*myStringIt == '$') { break; }
-
-			//Checks if current character is a non-operator
-			//if it is a non-operator the value is pushed
-			//to the stack
-			if (!isOperator(*myStringIt)) {
-				try {
-					myStack.push(myMap.at(*myStringIt));
-				}
-				catch (out_of_range& err) {
-					cout << "\tAn error occured during evaluation:" << err.what() << endl;
-					noErrors = false;
-					break;
+					myMap.emplace(result.str(), value);
 				}
 			}
-			else {
-				//Error check if not enough values pushed to
-				//the stack to do operation on
-				if (myStack.size() < 2) {
-					cout << "\tInvalid expression: the operator " << *myStringIt << " at position " << myStringIt - expr.begin() << " did not have two elements to act upon." << endl;
-					noErrors = false;
-					break;
-				}
-
-				//Store top two values from the stack
-				//into temporary variables
-				//pop the stack to remove the top two
-				//variables
-				tempValueTwo = myStack.top();
-				myStack.pop();
-				tempValueOne = myStack.top();
-				myStack.pop();
-
-				//based on operation symbol do
-				//the corresponding operation
-				//to the temporary variables
-				if (*myStringIt == '+') { myStack.push(tempValueOne + tempValueTwo); }
-				else if (*myStringIt == '-') { myStack.push(tempValueOne - tempValueTwo); }
-				else if (*myStringIt == '*') { myStack.push(tempValueOne*tempValueTwo); }
-				else if (*myStringIt == '/') { myStack.push(tempValueOne / tempValueTwo); }
-			}
 		}
-
-		//Error checking to ensure that there is only one value
-		//on the stack as a final value
-		if (myStack.size() != 1) {
-			cout << "\tInvalid expression: a single result value was not obtained." << endl;
-		}
-
-		//Check for previous errors
-		else if (noErrors) {
-			cout << "\t\tFinal value:" << myStack.top() << endl;
-			myStack.pop();
-		}
-
-		//Prompt user if they would like to continue or not
 		if (promptContinue()) { 
 			myMap.clear();
 			continue; 
